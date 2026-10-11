@@ -1,0 +1,46 @@
+{
+  "application": "Brax Device Toolkit",
+  "repair_profile": "BraX3, BaseOS build 58 / P18",
+  "capabilities": [
+    {
+      "name": "Serial number and IMEI repair",
+      "status": "supported-profile-only",
+      "details": "Backs up changed records, verifies readback and checks persistence after restart. Use identifiers assigned to the phone."
+    },
+    {
+      "name": "Bluetooth and Wi-Fi factory addresses",
+      "status": "supported-profile-only",
+      "details": "Optional assigned addresses with record backup, readback and restore. The effective radio address is not independently verified; Android privacy addresses may differ."
+    },
+    {
+      "name": "Record backup and restore",
+      "status": "available",
+      "details": "Serial and IMEI snapshots plus Bluetooth/Wi-Fi transaction backups. Not a full phone, calibration, photo or app backup."
+    },
+    {
+      "name": "Connection and mode detection",
+      "status": "available",
+      "details": "Android ADB and META inspection, supported META entry and return to Android. Requires the appropriate USB drivers."
+    },
+    {
+      "name": "OS package preparation",
+      "status": "available",
+      "details": "Catalog selection, checksum verification and package review. Checksums do not authenticate a publisher or establish phone compatibility."
+    },
+    {
+      "name": "Powered-off phone diagnostics",
+      "status": "read-only",
+      "details": "Reads supported preloader/BROM chip information. A chip match does not identify an exact phone model."
+    },
+    {
+      "name": "OS installation and formatting",
+      "status": "disabled",
+      "details": "All Download Only, Firmware Upgrade, Format Only and Format + Download operations are blocked until exact device-to-release compatibility is verified."
+    }
+  ],
+  "limitations": [
+    "Other repair firmware profiles and phone models are not supported.",
+    "Automatic identifier allocation, device security provisioning and authentication bypass are not provided.",
+    "Windows application builds are unsigned."
+  ]
+}
