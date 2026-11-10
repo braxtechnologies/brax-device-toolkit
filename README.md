@@ -69,6 +69,11 @@ have checked the result after restarting the phone.
 
 ## For contributors
 
+The experimental [native Python flashing engine](NATIVE-FLASH.md) removes the
+vendor executable from the storage-inspection path. Full native OS installation
+is not yet validated; it still needs a compatible vendor Download Agent and USB
+driver.
+
 Use Windows and Python 3.13 with Tk support:
 
 ```powershell

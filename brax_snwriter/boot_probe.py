@@ -1,4 +1,4 @@
-"""Bounded, read-only MediaTek boot-port probe; never downloads or starts a DA.
+"""Bounded MediaTek boot-port handshake and read-only information probe.
 
 USB IDs: SP Flash Tool V6.2404 usb_settings.xml. Handshake and information
 command framing cross-checked with mtkclient Library/Port.py and mtk_preloader.py.
@@ -22,11 +22,12 @@ def candidates(ports):
     return [p for p in ports if p.vid == 0x0e8d and p.pid in BOOT_IDS]
 
 
-def inspect_port(port, cancel, serial_factory=serial.Serial):
-    """Handshake then issue only FD/FC/D8 information commands.
+def open_boot_session(port, cancel, serial_factory=serial.Serial, on_ready=None):
+    """Handshake, read FD/FC/D8 information, then invoke an optional callback.
 
-    Holding a boot connection can delay normal boot. No watchdog disable,
-    memory write, flash write, authentication submission or DA upload is sent.
+    Without a callback this only reads information. A callback owns subsequent
+    operations on the open link, including any explicitly selected agent load.
+    Holding a boot connection can delay normal boot.
     """
     # Windows can enumerate the COM name before CreateFile can open it.
     # Only retry opening: never restart a partly completed command sequence.
@@ -84,7 +85,7 @@ def inspect_port(port, cancel, serial_factory=serial.Serial):
         config, status = struct.unpack('>IH', command(0xd8, 6))
         if status != 0:
             raise ValueError(f'Security configuration command failed: 0x{status:04x}')
-        return {'port': port.device, 'usb_location': port.location,
+        info = {'port': port.device, 'usb_location': port.location,
                 'mode': BOOT_IDS[port.pid], 'handshake_verified': True,
                 'hw_code': f'0x{code:04x}', 'initial_hw_version': initial_version,
                 'hw_subcode': subcode, 'hw_version': hw_version, 'sw_version': sw_version,
@@ -92,6 +93,12 @@ def inspect_port(port, cancel, serial_factory=serial.Serial):
                 'secure_boot': bool(config & 1), 'serial_link_auth': bool(config & 2),
                 'download_agent_auth': bool(config & 4), 'root_certificate_required': bool(config & 16),
                 'download_agent_tested': False, 'flash_ready': False}
+        return on_ready(link, info) if on_ready else info
+
+
+def inspect_port(port, cancel, serial_factory=serial.Serial):
+    """Read boot information, then close the connection without loading code."""
+    return open_boot_session(port, cancel, serial_factory)
 
 
 def wait_and_probe(timeout=60, cancel=None, enumerate_ports=comports,
