@@ -49,5 +49,7 @@ partition. Full readback matched the original backup, SHA256
 `3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351`.
 The original partition was blank; this same-content test verifies the transfer
 and readback path, not installation or booting of a different OS. The agent
-accepted the reboot command. This is not a consumer-ready replacement for full
-SP Flash Tool functionality.
+accepted the reboot command. After reboot, ADB confirmed boot completion, the
+unchanged BaseOS build 109 fingerprint (Android 16), active slot `_a`, and verified
+boot state `green`. This is not a consumer-ready replacement for full SP Flash
+Tool functionality.
