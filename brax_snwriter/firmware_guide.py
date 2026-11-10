@@ -11,6 +11,9 @@ from .compatibility import require_verified_compatibility
 
 STEPS = ('Check your phone', 'Choose and download an OS', 'Review changes',
          'Turn off and reconnect', 'Install the OS', 'Check first startup')
+# Steps from this index on cannot be reached until compatibility checks exist.
+FIRST_UNAVAILABLE = 3
+INK, MUTED, DONE = '#171717', '#6B6B70', '#1E7B45'
 MODE_HELP = {
     'Download Only': 'Installs the files included in the OS package. “Download” means writing to the phone, not just saving a file on your computer. Your apps, photos and settings can be erased if the package includes a user-data image. It is not a keep-my-data option.',
     'Firmware Upgrade': 'Installs firmware and can change how the phone’s storage is divided. Treat this as erasing your personal data. Use only an upgrade approved for this exact phone. Preservation of factory records has not been validated here.',
@@ -53,6 +56,7 @@ class FirmwareGuide:
         self.app, self.run = app, run
         self.stage, self.phone, self.downloaded, self.plan = 0, None, None, None
         self.controls, self.labels, self.results = [], [], []
+        self.state_labels, self.bodies = [], []
         self.packages = {}
         self.selected = tk.StringVar()
         self.mode = tk.StringVar(value='Download Only')
@@ -74,15 +78,23 @@ class FirmwareGuide:
         )
         for index, (title, instruction) in enumerate(zip(STEPS, instructions)):
             card = ttk.Frame(parent, padding=20, style='Card.TFrame', relief='solid', borderwidth=1)
-            card.pack(fill='x', pady=(0, 16)); cards.append(card)
+            card.pack(fill='x', pady=(0, 16))
             ttk.Label(card, text=f'{index+1:02d}   {title}', style='Step.TLabel').pack(anchor='w')
             state = tk.StringVar(); self.labels.append(state)
-            ttk.Label(card, textvariable=state, style='Card.TLabel', foreground='#B83A21').pack(anchor='w', pady=(4, 8))
-            label = ttk.Label(card, text=instruction, style='Card.TLabel', wraplength=800)
+            state_label = ttk.Label(card, textvariable=state, style='Card.TLabel', foreground=MUTED)
+            state_label.pack(anchor='w', pady=(4, 8)); self.state_labels.append(state_label)
+            # Only the current step shows its instructions and controls.
+            body = ttk.Frame(card, style='Card.TFrame'); cards.append(body)
+            label = ttk.Label(body, text=instruction, style='Card.TLabel', wraplength=800)
             label.pack(fill='x', pady=(0, 12))
-            card.bind('<Configure>', lambda event, label=label: label.configure(wraplength=max(300, event.width-48)))
             result = tk.StringVar(); self.results.append(result)
-            ttk.Label(card, textvariable=result, style='Card.TLabel', wraplength=800).pack(anchor='w', pady=6)
+            outcome = ttk.Label(card, textvariable=result, style='Card.TLabel', wraplength=800)
+            outcome.pack(anchor='w')
+            def resize(event, label=label, outcome=outcome):
+                label.configure(wraplength=max(300, event.width-48))
+                outcome.configure(wraplength=max(300, event.width-48))
+            card.bind('<Configure>', resize)
+            self.bodies.append((body, outcome))
         self.button(cards[0], 'Check phone and current OS', 0, self.check_phone)
         self.button(cards[1], 'Load OS catalog', 1, self.load_catalog)
         self.combo = ttk.Combobox(cards[1], textvariable=self.selected, state='disabled', width=65)
@@ -124,10 +136,19 @@ class FirmwareGuide:
             self.app.flash_prerequisite.refresh()
         for index, label in enumerate(getattr(self.app, 'firmware_rail', [])):
             label.configure(text=('✓' if index < self.stage else str(index+1))+'  '+STEPS[index],
-                            foreground='#B83A21' if index <= self.stage else '#55555A',
+                            foreground=DONE if index < self.stage else INK if index == self.stage else MUTED,
                             font=('Segoe UI', 10, 'bold' if index == self.stage else 'normal'))
         for index, label in enumerate(self.labels):
-            label.set('Complete' if index < self.stage else 'Current step' if index == self.stage else f'Locked · finish step {index}')
+            label.set('Complete' if index < self.stage else 'Current step' if index == self.stage else
+                      'Not available in this release' if index >= FIRST_UNAVAILABLE else f'Locked · finish step {index}')
+            self.state_labels[index].configure(
+                foreground=DONE if index < self.stage else INK if index == self.stage else MUTED,
+                font=('Segoe UI', 10, 'bold' if index == self.stage else 'normal'))
+            body, outcome = self.bodies[index]
+            if index == self.stage and not body.winfo_manager():
+                body.pack(fill='x', before=outcome)
+            elif index != self.stage and body.winfo_manager():
+                body.pack_forget()
         for stage, control, normal in self.controls:
             enabled = not self.app.busy and (stage == -1 or stage == self.stage)
             control.configure(state=normal if enabled else 'disabled')
