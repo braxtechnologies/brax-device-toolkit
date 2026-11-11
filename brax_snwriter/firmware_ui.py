@@ -118,10 +118,22 @@ def build_firmware(app, parent):
         app.run(label, tracked, done)
         app.firmware_guide.refresh()
     app.firmware_guide = FirmwareGuide(app, parent, run)
+    # Installation is blocked in this release, so the vendor-tool setup is
+    # offered below the steps instead of in front of them.
     from .flash_prerequisite import FlashPrerequisite
     prerequisites = ttk.Frame(parent)
-    prerequisites.pack(fill='x', before=app.firmware_guide.rail)
     app.flash_prerequisite = FlashPrerequisite(app, prerequisites, run)
+    show_prerequisites = tk.BooleanVar(value=False)
+    def toggle_prerequisites():
+        if app.busy:
+            show_prerequisites.set(not show_prerequisites.get()); return
+        if show_prerequisites.get():
+            prerequisites.pack(fill='x', after=prerequisite_toggle)
+        else:
+            prerequisites.pack_forget()
+    prerequisite_toggle = ttk.Checkbutton(parent, text='SP Flash Tool setup: checked at the step 3 review; installation itself is not available in this release',
+                    variable=show_prerequisites, command=toggle_prerequisites)
+    prerequisite_toggle.pack(anchor='w', pady=(12, 0))
     advanced = ttk.Frame(parent, padding=16)
     show_advanced = tk.BooleanVar(value=False)
     def toggle():
