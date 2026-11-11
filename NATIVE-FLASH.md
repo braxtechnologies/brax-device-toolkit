@@ -33,7 +33,8 @@ The corrected native engine completed a full 23-image BaseOS installation on the
 test BraX3 on November 11, 2026, without starting SP Flash Tool or loading its
 DLLs. All 545 RAW/FILL data ranges (4,203,126,272 bytes) passed independent
 readback comparison, and the stock agent accepted the native reboot command.
-Android setup/boot confirmation is still pending. Sparse DONT_CARE ranges were
+The user confirmed BaseOS setup after reboot. Exact build properties were not
+checked through ADB. Sparse DONT_CARE ranges were
 not compared; this is not a full-storage verification or general-model validation.
 
 Earlier attempts failed during super.img and required stock-tool recovery. Those
@@ -115,4 +116,4 @@ ACK payloads. This is protocol evidence, not proof of a successful Python flash.
 All 178 automated tests pass, including a blocked writer that requires concurrent
 incoming traffic to be drained, worker error propagation, and no resend on failure.
 The corrected engine subsequently passed the full 23-image transfer and all 545
-readback ranges on the original test BraX3. Boot confirmation is pending.
+readback ranges on the original test BraX3. The user confirmed BaseOS setup after the native reboot.
