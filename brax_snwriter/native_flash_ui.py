@@ -71,7 +71,7 @@ def build_native_controls(app, parent, run, monitor):
     app.action(box, 'Read storage using Python', inspect, advanced=True)
     ttk.Label(box,text='Experimental installation: supports only the reviewed August 26 BaseOS 1.0 '
               'SP Flash ZIP. First inspect storage above, let Android restart, and authorize USB debugging. '
-              'Installation resets apps and user data, preserves preloader and factory identities, and '
+              'Installation replaces user data. A factory reset in Recovery is required afterward. It preserves preloader and factory identities, and '
               'saves image-range backups for diagnosis. These are not complete phone backups; '
               'the agent may erase selected partitions.',wraplength=800).pack(anchor='w',pady=8)
 
@@ -110,7 +110,7 @@ def build_native_controls(app, parent, run, monitor):
             answer = simpledialog.askstring('Review BaseOS installation',
                 f"Phone: {phone['serial']}\nBaseOS 1.0 (August 26)\n"
                 f"{plan['write_bytes']/1024**3:.2f} GiB will be backed up, written and verified.\n"
-                'Apps and user data will be reset. Preloader and factory identities are preserved.\n\n'
+                'Apps and user data will be reset. After flashing, complete Factory reset in Recovery before starting Android. Preloader and factory identities are preserved.\n\n'
                 'Unplug and power off the phone. Type INSTALL to start listening, then reconnect USB. '
                 'Leave it connected until verification finishes.',parent=app.root)
             if answer != 'INSTALL':
@@ -120,7 +120,7 @@ def build_native_controls(app, parent, run, monitor):
             app.root.after(100,lambda:run('Native BaseOS installation',
                 lambda:connect(agent_path,location,
                     lambda agent,device:install(agent,device,plan,output,event),event=event,timeout=300),
-                lambda result:app.status.set('All written ranges verified. Reboot requested; check Android setup. Records: '+str(output))))
+                lambda result:app.status.set('Written ranges verified. Complete Factory reset in Recovery, then verify Android setup. Records: '+str(output))))
 
         run('Reviewing native BaseOS package',prepare_operation,reviewed)
 

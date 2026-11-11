@@ -68,25 +68,12 @@ def prepare(package, expected, directory):
         agent = directory/'DA_BR.bin'
         save_exclusive(agent,archive.read(base+'/download_agent/DA_BR.bin'))
     stock_agent(agent)
-    metadata = expected['partitions'].get('metadata')
-    if not metadata or not 0 < metadata['size'] <= 128*1024*1024:
-        raise ValueError('Expected bounded metadata partition for fresh installation')
-    # Reinitialize encryption metadata with the new userdata filesystem.
-    plan.append({'name':'metadata', 'path':None, 'offset':metadata['offset'],
-                 'size':metadata['size'],'extents':[{'offset':0,'size':metadata['size'],
-                 'kind':'fill','pattern':'00000000'}]})
-    metadata_path = images/'metadata-reset.img'
-    save_exclusive(metadata_path,bytes(metadata['size']))
-    plan[-1]['path'] = str(metadata_path)
-    plan[-1]['sha256'] = file_hash(metadata_path)
     root = ET.fromstring(scatter_xml)
     for group in root.findall('storage_type'):
         for node in group.findall('partition_index'):
             name = node.findtext('partition_name')
-            selected = group.get('name') == 'EMMC' and name in PARTITIONS | {'metadata'}
+            selected = group.get('name') == 'EMMC' and name in PARTITIONS
             node.find('is_download').text = 'true' if selected else 'false'
-            if group.get('name') == 'EMMC' and name == 'metadata':
-                node.find('file_name').text = metadata_path.name
     scatter_path = directory/'MT6835_Android_scatter.xml'
     save_exclusive(scatter_path,ET.tostring(root,encoding='utf-8',xml_declaration=True))
     plan.sort(key=lambda p: (2 if p['name'].startswith('vbmeta') else
@@ -98,6 +85,7 @@ def prepare(package, expected, directory):
     review = {'package_sha256':PACKAGE_SHA256,'expected_device':expected,'images':plan,
               'scatter':str(scatter_path),'scatter_sha256':file_hash(scatter_path),
               'write_bytes':total,'resets_user_data':True,'preserves_preloader':True,
+              'requires_recovery_factory_reset':True,
               'backup_scope':'image-data ranges only; not a full phone backup',
               'sparse_holes':'not compared; agent may erase selected partitions'}
     save_exclusive(directory/'plan.json',json.dumps(review,indent=2).encode())
@@ -108,6 +96,8 @@ def install(agent, device, plan, directory, event=print):
     directory = Path(directory)
     if device != plan['expected_device']:
         raise ValueError('Connected storage identity or layout differs from reviewed phone')
+    if any(image['name'] not in PARTITIONS for image in plan['images']):
+        raise ValueError('Plan contains an unsupported image; regenerate it from the official package. Metadata must be reset through recovery.')
     for image in plan['images']:
         if image['path'] and file_hash(image['path']) != image['sha256']:
             raise ValueError('Prepared image changed: '+image['name'])
@@ -156,7 +146,8 @@ def install(agent, device, plan, directory, event=print):
                     done += size
                     event(f'Installed and verified {image["name"]}: {done}/{total} bytes ({100*done/total:.1f}%)')
         result = {'written_bytes':done,'verified_ranges':index,'readback_verified':True,
-                  'boot_verified':False,'package_sha256':plan['package_sha256']}
+                  'boot_verified':False,'package_sha256':plan['package_sha256'],
+                  'requires_recovery_factory_reset':True,'recovery_reset_verified':False}
         save_exclusive(directory/'result.json',json.dumps(result,indent=2).encode())
         return result
     except Exception as exc:

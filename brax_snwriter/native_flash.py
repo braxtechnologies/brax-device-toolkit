@@ -87,8 +87,8 @@ def start_agent(link, identity, regions, event):
     if agent.read_exact(2) != b'\0\0':
         raise AgentError('Preloader refused agent start')
     agent.expect_message('START')
-    agent.simple('SET-RUNTIME-PARAMETER', dict(checksum_level='NONE', battery_exist='AUTO-DETECT',
-                 da_log_level='INFO', log_channel='UART', system_os='WINDOWS'), version='1.1',
+    agent.simple('SET-RUNTIME-PARAMETER', dict(checksum_level='NONE', battery_exist='YES',
+                 da_log_level='INFO', log_channel='USB', system_os='WINDOWS', usb_speed='HIGH-SPEED'), version='1.2',
                  advanced={'initialize_dram': 'YES'})
     capabilities = 'CMD:DOWNLOAD-FILE^1@CMD:FILE-SYS-OPERATION^1@CMD:PROGRESS-REPORT^1@CMD:UPLOAD-FILE^1@'
     agent.simple('HOST-SUPPORTED-COMMANDS', {'host_capability': capabilities})

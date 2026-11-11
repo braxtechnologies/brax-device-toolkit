@@ -44,7 +44,23 @@ class PartitionDownloadTests(unittest.TestCase):
 
     def test_denial_is_not_success_or_retry(self):
         end = b'<host><command>CMD:END</command><arg><result>ERR</result><message>Security deny</message></arg></host>'
-        link = Link(frame('OK')+frame(end)+frame(message('START')))
+        link = Link(frame('OK')+frame(end))
         with self.assertRaises(AgentError):
             write_named_partition(Agent(link),self.scatter,'boot_a',self.image)
         self.assertEqual(sum(b'CMD:WRITE-PARTITIONS' in p for p in link.writes),1)
+
+    def test_download_deadlines_are_bounded_and_restored_on_failure(self):
+        from unittest.mock import patch
+        link = Link(b'')
+        link.write_timeout = 10
+        agent = Agent(link, timeout=30)
+        def failing(*args):
+            self.assertEqual(agent.timeout,120)
+            self.assertEqual(link.write_timeout,120)
+            raise OSError('transport stopped')
+        with patch('brax_snwriter.partition_download._write_named_partition',side_effect=failing) as operation:
+            with self.assertRaises(OSError):
+                write_named_partition(agent,self.scatter,'super',self.image)
+            operation.assert_called_once()
+        self.assertEqual(agent.timeout,30)
+        self.assertEqual(link.write_timeout,10)

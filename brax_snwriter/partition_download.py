@@ -3,9 +3,31 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 from .da_protocol import AgentError, MAX_PACKET, command_xml
+from .duplex_stream import DuplexStream
 
 
 def write_named_partition(agent, scatter, partition, image):
+    # Large sparse downloads can pause while the stock agent processes a buffer.
+    # Use bounded longer I/O deadlines; never resend after a timeout.
+    previous_read = agent.timeout
+    previous_write = getattr(agent.stream, 'write_timeout', None)
+    agent.timeout = max(previous_read, 120)
+    agent.stream.write_timeout = max(previous_write or 0, 120)
+    original_stream = agent.stream
+    try:
+        with DuplexStream(original_stream) as duplex:
+            agent.stream = duplex
+            return _write_named_partition(agent, scatter, partition, image)
+    except Exception:
+        agent.failed = True
+        raise
+    finally:
+        agent.stream = original_stream
+        agent.timeout = previous_read
+        agent.stream.write_timeout = previous_write
+
+
+def _write_named_partition(agent, scatter, partition, image):
     scatter, image = Path(scatter), Path(image)
     files = {str(scatter):scatter, str(image):image}
     if scatter == image:
@@ -22,10 +44,11 @@ def write_named_partition(agent, scatter, partition, image):
             name, request = agent.message()
             if name == 'CMD:END':
                 result = request.findtext('arg/result') or request.findtext('result')
+                agent.event('Named download result: '+ET.tostring(request,encoding='unicode'))
                 agent.ack()
-                agent.expect_message('START')
                 if result != 'OK' or not sent_image:
                     raise AgentError('Named download failed: '+ET.tostring(request,encoding='unicode'))
+                agent.expect_message('START')
                 return
             if name == 'CMD:FILE-SYS-OPERATION':
                 path = request.findtext('arg/file_path')

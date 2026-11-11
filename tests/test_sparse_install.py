@@ -91,6 +91,14 @@ class InstallTests(unittest.TestCase):
         self.assertTrue(result['readback_verified'])
         self.assertFalse(result['boot_verified'])
 
+    def test_synthetic_metadata_plan_rejected_before_device_io(self):
+        self.plan['images'][0]['name'] = 'metadata'
+        with self.assertRaisesRegex(ValueError, 'Metadata must be reset through recovery'):
+            install(self.agent,self.device,self.plan,self.root)
+        self.assertFalse(self.agent.mock_calls)
+        self.named.assert_not_called()
+        self.assertFalse((self.root/'backup').exists())
+
     def test_identity_mismatch_sends_nothing(self):
         with self.assertRaises(ValueError):
             install(self.agent,{'cid':'wrong'},self.plan,self.root)

@@ -47,7 +47,7 @@ class AgentTransportTests(unittest.TestCase):
         last_data = max(i for i, packet in enumerate(link.writes) if packet == b'x'*512)
         # Only END and START are acknowledged after the last data status.
         # An extra ACK desynchronizes the next command on the stock BraX3 agent.
-        self.assertEqual(link.writes[last_data+1:].count(b'OK\0\0'), 2)
+        self.assertEqual(link.writes[last_data+1:].count(b'OK\0'), 2)
 
     def test_raw_read_status_and_final_end(self):
         end = b'<?xml version="1.0"?><host><command>CMD:END</command><arg><result>OK</result></arg></host>'

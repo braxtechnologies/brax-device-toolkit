@@ -79,7 +79,7 @@ class Agent:
         return self.receive().rstrip(b'\0').decode('utf-8')
 
     def ack(self, value=None):
-        self.send('OK\0' if value is None else f'OK@{hex(value)}\0')
+        self.send('OK' if value is None else f'OK@{hex(value)}')
 
     def expect_ok(self):
         reply = self.text()

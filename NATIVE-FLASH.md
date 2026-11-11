@@ -16,7 +16,8 @@ A chip identifier alone does not establish firmware compatibility.
 
 The BaseOS path requires a matching recorded storage identity and partition
 layout. The UI additionally checks BraX3 identity and active slot A in Android.
-It resets userdata and encryption metadata, installs the selected eMMC user-area
+It replaces userdata and requires a separate factory reset in Recovery to reset
+encryption metadata. It installs the selected eMMC user-area
 firmware (including LK and TEE images), and preserves preloader boot regions and
 factory identity partitions. It does not change slots or partition tables.
 
@@ -28,12 +29,18 @@ sparse images are rejected rather than silently ignoring their checksums. The
 reviewed package does not require that feature. This installation resets data
 but does not securely overwrite unused storage.
 
-Full-install validation is pending. The first live attempt completed image-range
-backup, then the stock agent denied raw WRITE-FLASH on `connsys_bt_a` before
-requesting image data. The installer now uses WRITE-PARTITIONS and restricted
-file-serving callbacks, as observed in the successful vendor-tool log. This
-change still requires its live installation and first-boot test; automated tests
-alone do not establish that it works on the phone.
+The corrected native engine completed a full 23-image BaseOS installation on the
+test BraX3 on November 11, 2026, without starting SP Flash Tool or loading its
+DLLs. All 545 RAW/FILL data ranges (4,203,126,272 bytes) passed independent
+readback comparison, and the stock agent accepted the native reboot command.
+Android setup/boot confirmation is still pending. Sparse DONT_CARE ranges were
+not compared; this is not a full-storage verification or general-model validation.
+
+Earlier attempts failed during super.img and required stock-tool recovery. Those
+failures led to the transport corrections below. Synthetic metadata images are
+not accepted: the stock agent rejected one with `Signature(Entity) invalid`.
+Only official package images are selected. Metadata is left to Android Recovery;
+its factory-reset flow is a separate capability and has not been validated here.
 
 Image-data ranges are backed up before the first write. Each image's RAW and FILL
 data are read back and compared after download. Failed writes are not retried.
@@ -90,3 +97,22 @@ accepted the reboot command. After reboot, ADB confirmed boot completion, the
 unchanged BaseOS build 109 fingerprint (Android 16), active slot `_a`, and verified
 boot state `green`. This is not a consumer-ready replacement for full SP Flash
 Tool functionality.
+
+## Transfer correction under test (November 11, 2026)
+
+Comparison with the successful BaseOS stock-tool trace found a host write paused
+from 15:59:40.058260 to 16:00:31.571975 while another receive thread continued
+reading agent heartbeat packets. The Python sender now drains incoming USB data
+on a bounded background reader during named downloads, with bounded 120-second
+I/O deadlines and no automatic packet resend. ACK packets now have exactly one
+null terminator, matching the stock trace. Runtime configuration matches the
+successful stock run (version 1.2, battery YES, USB logging, HIGH-SPEED).
+
+REA/Ghidra decompiled the stock DOWNLOAD-FILE handler at 0x1002e8d0;
+evidence ID `ev_f449d4a367bbce491673ef0434746d90316f320e6806e20f5f6851f85b184440`.
+The decompiled framing uses string length plus one, consistent with the captured
+ACK payloads. This is protocol evidence, not proof of a successful Python flash.
+All 178 automated tests pass, including a blocked writer that requires concurrent
+incoming traffic to be drained, worker error propagation, and no resend on failure.
+The corrected engine subsequently passed the full 23-image transfer and all 545
+readback ranges on the original test BraX3. Boot confirmation is pending.
