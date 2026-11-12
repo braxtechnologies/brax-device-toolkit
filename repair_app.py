@@ -12,6 +12,8 @@ def main():
     args = parser.parse_args()
     root = tk.Tk()
     app = RepairApp(root)
+    # Local checks only; the download server is contacted when the user asks.
+    root.after(300, app.computer_card.start)
     if args.install_os or args.flash_log:
         app.tabs.select(app.sections['firmware'])
     if args.flash_log:

@@ -53,7 +53,7 @@ class GuidedRepairTests(unittest.TestCase):
 
     def test_four_tabs_and_later_steps_locked(self):
         a = self.app
-        self.assertEqual([a.tabs.tab(t,'text') for t in a.tabs.tabs()], ['Serial & IMEI','Advanced tools','Session log','Install OS'])
+        self.assertEqual([a.tabs.tab(t,'text') for t in a.tabs.tabs()], ['Serial & IMEI','Install OS','Advanced tools','Session log'])
         for controls in a.step_widgets[1:]:
             for control in controls:
                 self.assertIn('disabled', control.state())

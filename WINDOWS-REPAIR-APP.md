@@ -16,6 +16,13 @@ release, even when SP Flash Tool is installed.
 5. In **Serial & IMEI**, refresh the device list, select your phone and click
    **Check connection**. Read the checked phone and OS information before continuing.
 
+The **This computer** card at the top of the first tab checks, without touching a
+phone, that ADB is present and runs, whether Windows has a working driver for a
+connected BraX3, whether another ADB is running, the optional Download Agent and
+SP Flash Tool, free disk space and (on **Check again**) the download server.
+Step 1 stays locked while ADB is missing. **Copy report** gives text for a
+support request; it holds no phone serial number.
+
 If ADB is missing, extract Android platform-tools and select its `adb.exe` in the
 app. If Windows cannot recognize the phone, check the appropriate USB driver.
 An authorization prompt must be accepted on the phone; a driver download cannot

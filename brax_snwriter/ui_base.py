@@ -44,6 +44,23 @@ class ToolTip:
             self.popup.destroy();self.popup=None
 
 
+def describe_error(exc):
+    """Say what went wrong in the app's words; keep the technical text after it."""
+    technical=f'{type(exc).__name__}: {exc}'
+    if isinstance(exc,FileNotFoundError):
+        # A program that could not be started has no filename; a missing data file has one.
+        if exc.filename is None:
+            return ('ADB was not found on this computer. Open Advanced tools, then use Browse… beside '
+                    'ADB executable to select adb.exe in your extracted platform-tools folder.\n'+technical)
+        return f'File not found: {exc.filename}\n'+technical
+    # These messages are written for the person using the app.
+    if type(exc) in (ValueError,TimeoutError,RuntimeError) and str(exc):
+        return str(exc)
+    if isinstance(exc,subprocess.CalledProcessError) and exc.stderr:
+        technical+='\n'+(exc.stderr.decode(errors='replace') if isinstance(exc.stderr,bytes) else str(exc.stderr))
+    return technical
+
+
 def data_directory():
     # Reuse existing records so upgrading never hides a user's recovery backups.
     previous = Path.home() / 'BraxStations' / 'identity-station'
@@ -169,11 +186,7 @@ class AppWindow:
                 result = operation()
                 self.queue.put(('success', (result, on_success)))
             except Exception as exc:
-                detail=f'{type(exc).__name__}: {exc}'
-                if isinstance(exc,subprocess.CalledProcessError) and exc.stderr:
-                    detail+='\n'+(exc.stderr.decode(errors='replace') if isinstance(exc.stderr,bytes) else str(exc.stderr))
-                if isinstance(exc,FileNotFoundError):
-                    detail+='\nUse Choose ADB to select platform-tools/adb.exe; verify that selected files exist.'
+                detail=describe_error(exc)
                 self.queue.put(('error',detail))
             finally:
                 self.queue.put(('done', None))
@@ -230,6 +243,8 @@ class AppWindow:
                 try:
                     temporary = self.data / 'settings.json.tmp'
                     settings = {'adb': self.fields['adb'].get()}
+                    if hasattr(self, 'native_agent'):
+                        settings['download_agent'] = self.native_agent.get()
                     if hasattr(self, 'firmware_tool'):
                         settings['sp_flash_tool'] = self.firmware_tool.get()
                     temporary.write_text(json.dumps(settings), encoding='utf-8')

@@ -18,7 +18,9 @@ from . import mac_records
 from .discovery import check_connection, adb_states, debugging_guidance
 from .device_connection import boot_meta, return_normal
 
-TITLE = 'Brax Serial and IMEI Repair Tool'
+TITLE = 'Brax Device Toolkit'
+# Red is kept for warnings and failures; step states use neutral and green tones.
+INK, MUTED, DONE, WARNING = '#171717', '#6B6B70', '#1E7B45', '#B83A21'
 
 
 class RepairApp(AppWindow):
@@ -27,12 +29,18 @@ class RepairApp(AppWindow):
         self.buttons, self.fields, self.inputs, self.input_states = [], {}, {}, {}
         self.tooltips, self.sections = {}, {}
         self.pending_serial = None
+        # None until the computer check has run; False locks step 1.
+        self.adb_ready = None
+        saved_agent = self.settings.get('download_agent', '') if isinstance(self.settings, dict) else ''
+        self.native_agent = tk.StringVar(value=saved_agent if isinstance(saved_agent, str) else '')
         self.stage = 0
         self.recovery_required = False
         self.reviewed = None
         self.step_widgets = [[] for _ in range(5)]
         self.field_steps = {}
         self.step_labels = []
+        self.state_labels = []
+        self.card_bodies = []
         self.summaries = []
         self.advanced_buttons = []
         self.action_messages = {}
@@ -40,12 +48,16 @@ class RepairApp(AppWindow):
         self.confirm = tk.BooleanVar(value=False)
         self.checked_phone = tk.StringVar(value='No phone checked yet.')
         self.confirm.trace_add('write', lambda *_: self.refresh_gates())
-        root.geometry('1120x900')
-        root.minsize(860, 680)
+        # Fit small laptop screens instead of opening taller than the display.
+        width = min(1120, max(860, root.winfo_screenwidth() - 80))
+        height = min(900, max(600, root.winfo_screenheight() - 120))
+        root.geometry(f'{width}x{height}')
+        root.minsize(860, 600)
         style = ttk.Style(root)
         style.configure('TFrame', background='#F5F4F7')
         style.configure('TLabel', background='#F5F4F7', foreground='#171717', font=('Segoe UI', 10))
-        style.configure('Title.TLabel', font=('Segoe UI', 23, 'bold'))
+        style.configure('Title.TLabel', font=('Segoe UI', 18, 'bold'))
+        style.configure('App.TLabel', font=('Segoe UI', 15, 'bold'))
         style.configure('TNotebook.Tab', padding=(16, 9), font=('Segoe UI', 10))
         style.map('TNotebook.Tab',
                   padding=[('selected', (22, 15)), ('!selected', (16, 9))],
@@ -59,9 +71,13 @@ class RepairApp(AppWindow):
         style.configure('Primary.TButton', background='#E65035', foreground='#171717', padding=(16, 10))
         style.map('Primary.TButton', background=[('disabled', '#e5ebe7'), ('active', '#D44528')], foreground=[('disabled', '#65786b')])
         self.brand_logo = tk.PhotoImage(master=root, file=str(Path(__file__).parent / 'assets' / 'brax-logo.png'))
-        ttk.Label(self.body, image=self.brand_logo).pack(anchor='w', pady=(0, 12))
-        ttk.Label(self.body, text=TITLE, style='Title.TLabel').pack(anchor='w')
-        ttk.Label(self.body, text='Write serial, IMEIs and optional Bluetooth / Wi-Fi addresses in one guided session.').pack(anchor='w', pady=(6, 20))
+        header = ttk.Frame(self.body)
+        header.pack(fill='x', pady=(0, 12))
+        ttk.Label(header, image=self.brand_logo).pack(side='left', padx=(0, 18))
+        titles = ttk.Frame(header)
+        titles.pack(side='left')
+        ttk.Label(titles, text=TITLE, style='App.TLabel').pack(anchor='w')
+        ttk.Label(titles, text='Repair identifiers, back up factory records and prepare an OS download for a supported BraX3.').pack(anchor='w')
         self.tabs = ttk.Notebook(self.body)
         self.tabs.pack(fill='both', expand=True)
         self.tabs.enable_traversal()
@@ -78,14 +94,27 @@ class RepairApp(AppWindow):
         bar.pack(side='right', fill='y')
         self.log.pack(fill='both', expand=True)
         self.status = tk.StringVar(value='Ready · select a phone to begin')
-        self.status.trace_add('write', lambda *_: self.show_result(self.status.get()))
+        # One status line stays visible on every tab, whatever is scrolled away.
+        self.status_line = tk.StringVar(value=self.status.get())
+        def status_changed(*_):
+            self.show_result(self.status.get())
+            self.set_status_line(self.status.get())
+        self.status.trace_add('write', status_changed)
         status_row = ttk.Frame(self.body)
-        status_row.pack(fill='x', pady=(10, 4))
+        status_row.pack(side='bottom', fill='x', pady=(10, 0), before=self.tabs)
+        status_row.columnconfigure(0, weight=1)
+        status_label = ttk.Label(status_row, textvariable=self.status_line, justify='left')
+        status_label.grid(row=0, column=0, sticky='ew')
+        status_row.bind('<Configure>', lambda event: status_label.configure(wraplength=max(200, event.width-150)))
+        # Shown only while an operation runs; see run() and drain().
+        self.progress = ttk.Progressbar(status_row, mode='indeterminate', length=180)
         ttk.Button(status_row, text='View session log',
-                   command=lambda: self.tabs.select(self.sections['log'])).pack(side='right')
-        self.progress = ttk.Progressbar(self.body, mode='indeterminate')
+                   command=lambda: self.tabs.select(self.sections['log'])).grid(row=0, column=2, padx=(12, 0))
+        from .computer_card import ComputerCard
+        self.computer_card = ComputerCard(self, content)
         self.session_text = tk.StringVar(value='0 of 5 steps complete')
-        ttk.Label(content, textvariable=self.session_text, foreground='#B83A21').pack(anchor='w', pady=(4, 12))
+        self.session_label = ttk.Label(content, textvariable=self.session_text, foreground=MUTED)
+        self.session_label.pack(anchor='w', pady=(4, 12))
         card = self.card(content, 0, 'Connect through ADB',
             '1. On the phone, open Settings → About phone and tap Build number seven times. Enter your screen-lock code if asked.\n'
             '2. Open Settings → System → Developer options and enable USB debugging.\n'
@@ -123,6 +152,9 @@ class RepairApp(AppWindow):
         _, firmware = self.scroll_page('Install OS', 'firmware')
         from .firmware_ui import build_firmware
         build_firmware(self, firmware)
+        # Both guided pages first, then tools and the log.
+        self.tabs.insert(1, self.sections['firmware'])
+        self.computer_card.watch_adb()
         self.fields['serial'].trace_add('write', self.selection_changed)
         for key in ('new', 'imei1', 'imei2', 'bluetooth', 'wifi'):
             self.fields[key].trace_add('write', self.identifiers_changed)
@@ -184,13 +216,23 @@ class RepairApp(AppWindow):
         frame.pack(fill='x', pady=(0, 16))
         self.step_labels.append(tk.StringVar())
         ttk.Label(frame, text=f'{index+1:02d}   {title}', style='Step.TLabel').pack(anchor='w')
-        ttk.Label(frame, textvariable=self.step_labels[-1], style='Card.TLabel', foreground='#B83A21').pack(anchor='w', pady=(4, 8))
-        text = ttk.Label(frame, text=instruction, style='Card.TLabel', wraplength=850, justify='left')
+        state = ttk.Label(frame, textvariable=self.step_labels[-1], style='Card.TLabel', foreground=MUTED)
+        state.pack(anchor='w', pady=(4, 8))
+        self.state_labels.append(state)
+        # Only the current step shows its instructions and controls; the title,
+        # state and result of the other steps stay visible.
+        body = ttk.Frame(frame, style='Card.TFrame')
+        text = ttk.Label(body, text=instruction, style='Card.TLabel', wraplength=850, justify='left')
         text.pack(fill='x', pady=(0, 12))
-        frame.bind('<Configure>', lambda event: text.configure(wraplength=max(400, event.width-48)))
         self.summaries.append(tk.StringVar())
-        ttk.Label(frame, textvariable=self.summaries[-1], style='Card.TLabel', wraplength=820).pack(anchor='w')
-        return frame
+        summary = ttk.Label(frame, textvariable=self.summaries[-1], style='Card.TLabel', wraplength=820, foreground=DONE)
+        summary.pack(anchor='w')
+        def resize(event):
+            text.configure(wraplength=max(400, event.width-48))
+            summary.configure(wraplength=max(400, event.width-48))
+        frame.bind('<Configure>', resize)
+        self.card_bodies.append((body, summary))
+        return body
 
     def add_field(self, parent, key, label, default='', step=None, choices=None):
         form = ttk.Frame(parent, padding=(0, 4))
@@ -262,6 +304,7 @@ class RepairApp(AppWindow):
             self.fields['adb'].set(path)
             self.resolve_adb()
             self.show_result('ADB executable: '+self.fields['adb'].get()+'\n'+self.adb_status.get())
+            self.computer_card.start()
 
     def show_capabilities(self):
         capabilities = json.loads((Path(__file__).resolve().parent.parent/'capabilities.json').read_text())
@@ -300,12 +343,24 @@ class RepairApp(AppWindow):
             return
         for i, (label, title) in enumerate(self.rail_labels):
             label.configure(text=('✓' if i < self.stage else str(i+1))+'  '+title,
-                            foreground='#B83A21' if i <= self.stage else '#55555A',
+                            foreground=DONE if i < self.stage else INK if i == self.stage else MUTED,
                             font=('Segoe UI', 10, 'bold' if i == self.stage else 'normal'))
+        no_adb = self.adb_ready is False and self.stage == 0
         for i, controls in enumerate(self.step_widgets):
             for control in controls:
-                control.configure(state='normal' if i == self.stage and not self.busy and not self.recovery_required else 'disabled')
-            self.step_labels[i].set('Complete' if i < self.stage else 'Current step' if i == self.stage else f'Locked · finish step {i}')
+                control.configure(state='normal' if i == self.stage and not self.busy and not self.recovery_required
+                                  and not (i == 0 and no_adb) else 'disabled')
+            self.step_labels[i].set('Complete' if i < self.stage else
+                                    'Waiting · ADB is missing. See This computer above.' if i == 0 and no_adb else
+                                    'Current step' if i == self.stage else f'Locked · finish step {i}')
+            self.state_labels[i].configure(foreground=DONE if i < self.stage else INK if i == self.stage else MUTED,
+                                           font=('Segoe UI', 10, 'bold' if i == self.stage else 'normal'))
+            body, summary = self.card_bodies[i]
+            if i == self.stage and not body.winfo_manager():
+                body.pack(fill='x', before=summary)
+            elif i != self.stage and body.winfo_manager():
+                body.pack_forget()
+        self.session_label.configure(foreground=WARNING if self.recovery_required else MUTED)
         for key, widget in self.inputs.items():
             step = self.field_steps[key]
             enabled = not self.busy and (step is None or (step == self.stage and not self.recovery_required) or (step == 0 and self.recovery_required))
@@ -331,6 +386,11 @@ class RepairApp(AppWindow):
         if hasattr(self, 'firmware_guide'):
             self.firmware_guide.refresh()
 
+    def set_status_line(self, text):
+        lines = text.strip().splitlines()
+        first = lines[0] if lines else ''
+        self.status_line.set(first[:220]+('…' if len(first) > 220 or len(lines) > 1 else ''))
+
     def show_result(self, text):
         if self.active_action_message is not None:
             self.active_action_message.set(text)
@@ -339,14 +399,9 @@ class RepairApp(AppWindow):
         if self.busy:
             return
         self.show_result(label+'…')
+        self.progress.grid(row=0, column=1, padx=(12, 0))
         def done(result):
-            if isinstance(result, dict) and 'adb' in result:
-                devices = result['adb'].strip()
-                ports = result.get('ports', [])
-                port_text = ', '.join(p['port'] for p in ports) or 'None detected'
-                self.show_result(devices+'\nMETA / serial ports: '+port_text)
-            else:
-                self.show_result(json.dumps(result, indent=2, default=str) if not isinstance(result, str) else result)
+            # The full result goes to the Session log; the screen gets a sentence.
             self.status.set(label+' · complete. Details in Session log.')
             if on_success:
                 on_success(result)
@@ -365,6 +420,9 @@ class RepairApp(AppWindow):
             detail = getattr(self, 'last_error', self.status.get())
             self.status.set('Stopped')
             self.show_result(detail)
+            self.set_status_line('Stopped · '+detail)
+        if not self.busy and self.progress.winfo_manager():
+            self.progress.grid_remove()
         self.refresh_gates()
 
     def require_stage(self, stage):
