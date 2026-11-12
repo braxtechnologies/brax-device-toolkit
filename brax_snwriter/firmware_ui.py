@@ -53,6 +53,8 @@ def build_advanced_firmware(app,parent,monitor):
     app.action(parent,'Check powered-off connection',check_boot,advanced=True)
     # Remains usable while the worker is listening; does not touch phone storage.
     ttk.Button(parent,text='Stop connection check',command=stop.set).pack(anchor='w',pady=4)
+    from .native_flash_ui import build_native_controls
+    build_native_controls(app, parent, run, monitor)
     selected=tk.StringVar();os_choice=tk.StringVar();packages={}
     ttk.Label(parent,text='Operating system').pack(anchor='w')
     os_combo=ttk.Combobox(parent,textvariable=os_choice,state='readonly',width=40);os_combo.pack(fill='x',pady=8)
@@ -93,7 +95,7 @@ def build_advanced_firmware(app,parent,monitor):
     app.action(parent,'Inspect downloaded SP Flash package',inspect_package,advanced=True)
     from .flash_controls import build_flash_controls
     build_flash_controls(app, parent, run, monitor)
-    ttk.Label(parent,text='Standalone Python flashing engine: not yet available. The operations above require external SP Flash Tool.',wraplength=800).pack(anchor='w',pady=16)
+    ttk.Label(parent,text='The native Python connection test does not need SP Flash Tool. Full OS installation and format support have not yet been validated for the native engine.',wraplength=800).pack(anchor='w',pady=16)
 
 
 def build_firmware(app, parent):

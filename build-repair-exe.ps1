@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Standalone executable build failed.' }
 $release = Join-Path $Output 'release'
 New-Item -ItemType Directory -Force $release | Out-Null
 Copy-Item -LiteralPath "$Output\standalone\BraxRepairTool.exe" -Destination "$release\BraxDeviceToolkit-Windows.exe" -Force
-foreach ($file in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'WINDOWS-REPAIR-APP.md')) {
+foreach ($file in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'WINDOWS-REPAIR-APP.md', 'NATIVE-FLASH.md')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination "$Output\BraxRepairTool" -Force
 }
 Compress-Archive -Path "$Output\BraxRepairTool" -DestinationPath "$release\BraxDeviceToolkit-Windows.zip" -Force

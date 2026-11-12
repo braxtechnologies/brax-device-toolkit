@@ -69,6 +69,12 @@ have checked the result after restarting the phone.
 
 ## For contributors
 
+The experimental [native Python flashing engine](NATIVE-FLASH.md) removes the
+vendor executable from storage inspection and the reviewed BaseOS 1.0 installation
+path. A full 23-image transfer and readback passed on the test BraX3, and the user
+confirmed BaseOS setup after reboot. It still needs the compatible vendor Download Agent and
+USB driver. Other firmware packages and phone models are not validated.
+
 Use Windows and Python 3.13 with Tk support:
 
 ```powershell
