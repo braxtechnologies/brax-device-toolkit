@@ -29,6 +29,10 @@ class RepairApp(AppWindow):
         self.buttons, self.fields, self.inputs, self.input_states = [], {}, {}, {}
         self.tooltips, self.sections = {}, {}
         self.pending_serial = None
+        # None until the computer check has run; False locks step 1.
+        self.adb_ready = None
+        saved_agent = self.settings.get('download_agent', '') if isinstance(self.settings, dict) else ''
+        self.native_agent = tk.StringVar(value=saved_agent if isinstance(saved_agent, str) else '')
         self.stage = 0
         self.recovery_required = False
         self.reviewed = None
@@ -106,6 +110,8 @@ class RepairApp(AppWindow):
         self.progress = ttk.Progressbar(status_row, mode='indeterminate', length=180)
         ttk.Button(status_row, text='View session log',
                    command=lambda: self.tabs.select(self.sections['log'])).grid(row=0, column=2, padx=(12, 0))
+        from .computer_card import ComputerCard
+        self.computer_card = ComputerCard(self, content)
         self.session_text = tk.StringVar(value='0 of 5 steps complete')
         self.session_label = ttk.Label(content, textvariable=self.session_text, foreground=MUTED)
         self.session_label.pack(anchor='w', pady=(4, 12))
@@ -148,6 +154,7 @@ class RepairApp(AppWindow):
         build_firmware(self, firmware)
         # Both guided pages first, then tools and the log.
         self.tabs.insert(1, self.sections['firmware'])
+        self.computer_card.watch_adb()
         self.fields['serial'].trace_add('write', self.selection_changed)
         for key in ('new', 'imei1', 'imei2', 'bluetooth', 'wifi'):
             self.fields[key].trace_add('write', self.identifiers_changed)
@@ -297,6 +304,7 @@ class RepairApp(AppWindow):
             self.fields['adb'].set(path)
             self.resolve_adb()
             self.show_result('ADB executable: '+self.fields['adb'].get()+'\n'+self.adb_status.get())
+            self.computer_card.start()
 
     def show_capabilities(self):
         capabilities = json.loads((Path(__file__).resolve().parent.parent/'capabilities.json').read_text())
@@ -337,10 +345,14 @@ class RepairApp(AppWindow):
             label.configure(text=('✓' if i < self.stage else str(i+1))+'  '+title,
                             foreground=DONE if i < self.stage else INK if i == self.stage else MUTED,
                             font=('Segoe UI', 10, 'bold' if i == self.stage else 'normal'))
+        no_adb = self.adb_ready is False and self.stage == 0
         for i, controls in enumerate(self.step_widgets):
             for control in controls:
-                control.configure(state='normal' if i == self.stage and not self.busy and not self.recovery_required else 'disabled')
-            self.step_labels[i].set('Complete' if i < self.stage else 'Current step' if i == self.stage else f'Locked · finish step {i}')
+                control.configure(state='normal' if i == self.stage and not self.busy and not self.recovery_required
+                                  and not (i == 0 and no_adb) else 'disabled')
+            self.step_labels[i].set('Complete' if i < self.stage else
+                                    'Waiting · ADB is missing. See This computer above.' if i == 0 and no_adb else
+                                    'Current step' if i == self.stage else f'Locked · finish step {i}')
             self.state_labels[i].configure(foreground=DONE if i < self.stage else INK if i == self.stage else MUTED,
                                            font=('Segoe UI', 10, 'bold' if i == self.stage else 'normal'))
             body, summary = self.card_bodies[i]

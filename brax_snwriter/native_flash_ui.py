@@ -15,7 +15,7 @@ def build_native_controls(app, parent, run, monitor):
               'then requests a reboot without writing or erasing storage. No SP Flash Tool executable '
               'or DLL is used. A compatible vendor Download Agent and USB driver are still required.',
               wraplength=800).pack(anchor='w')
-    path = tk.StringVar()
+    path = app.native_agent  # shared with the computer check and saved on close
     inspected = {}
 
     def event(message):

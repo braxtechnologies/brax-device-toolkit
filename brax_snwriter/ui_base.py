@@ -243,6 +243,8 @@ class AppWindow:
                 try:
                     temporary = self.data / 'settings.json.tmp'
                     settings = {'adb': self.fields['adb'].get()}
+                    if hasattr(self, 'native_agent'):
+                        settings['download_agent'] = self.native_agent.get()
                     if hasattr(self, 'firmware_tool'):
                         settings['sp_flash_tool'] = self.firmware_tool.get()
                     temporary.write_text(json.dumps(settings), encoding='utf-8')
