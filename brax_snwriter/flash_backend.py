@@ -1,7 +1,7 @@
 """Explicit adapter to the installed SP Flash Tool CLI; not a native writer."""
 import hashlib
 import json
-import re
+import os
 import subprocess
 import uuid
 import xml.etree.ElementTree as ET
@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from .flash_plan import review_scatter
 from .compatibility import require_verified_compatibility
+from .platform_support import NO_WINDOW, is_serial_port, usb_device_location
 
 MODES = {
     'download': ('Download Only', 'Write the images selected by the package. A selected userdata image replaces user data. Unselected factory partitions are not intentionally written.'),
@@ -35,9 +36,10 @@ def prepare(tool, manifest, mode, device):
     if mode not in MODES:
         raise ValueError('Unsupported operation')
     tool, manifest = Path(tool).resolve(), Path(manifest).resolve()
-    if not tool.is_file() or tool.name.lower() != 'spflashtoolv6.exe':
-        raise ValueError('Choose the installed SPFlashToolV6.exe')
-    if device.get('handshake_verified') is not True or device.get('hw_code') != '0x1209' or not re.fullmatch(r'COM[1-9][0-9]*', device.get('port', '')) or not device.get('usb_location'):
+    windows_tool = tool.name.lower() == 'spflashtoolv6.exe'
+    if not tool.is_file() or not (windows_tool or tool.name == 'SPFlashToolV6'):
+        raise ValueError('Choose the installed SPFlashToolV6.exe (Windows) or SPFlashToolV6 (Linux)')
+    if device.get('handshake_verified') is not True or device.get('hw_code') != '0x1209' or not is_serial_port(device.get('port', '')) or not device.get('usb_location'):
         raise ValueError('Check the powered-off BraX3 connection first')
     require_verified_compatibility(device, manifest, mode)
     root, _ = xml(manifest)
@@ -57,7 +59,9 @@ def prepare(tool, manifest, mode, device):
         if path != tool and not path.resolve().is_relative_to(base):
             raise ValueError('Package file leaves package directory')
         fingerprints[str(path)] = digest(path)
-    command = [str(tool), '-c', mode, '-f', str(manifest), '-p', device['port'], '-t', 'with', '-l', 'USB', '-r']
+    # The vendor CLI names a COM port on Windows and a USB location such as 5-1 on Linux.
+    target = device['port'] if windows_tool else usb_device_location(device['usb_location'])
+    command = [str(tool), '-c', mode, '-f', str(manifest), '-p', target, '-t', 'with', '-l', 'USB', '-r']
     if mode != 'format':
         command.append('-b')
     return {'command': command, 'mode': mode, 'device': dict(device), 'files': fingerprints,
@@ -90,9 +94,15 @@ def execute(plan, confirmation, records, emit, *, popen=subprocess.Popen, ports=
     emit('External SP Flash Tool: connect ONLY the reviewed powered-off phone now. Keep USB connected until the operation finishes.')
     try:
         with (folder/'debug.log').open('w', encoding='utf-8') as log:
-            process = popen(plan['command'], cwd=Path(plan['command'][0]).parent,
+            tool_dir = Path(plan['command'][0]).parent
+            env = None
+            if not plan['command'][0].lower().endswith('.exe'):
+                # Same library setup as the vendor SPFlashToolV6.sh launcher.
+                env = dict(os.environ, LD_LIBRARY_PATH=os.pathsep.join(
+                    [str(tool_dir), str(tool_dir/'lib'), os.environ.get('LD_LIBRARY_PATH', '')]).rstrip(os.pathsep))
+            process = popen(plan['command'], cwd=tool_dir, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            errors='replace', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                            errors='replace', creationflags=NO_WINDOW)
             result['pid'] = process.pid
             result['state'] = 'running'
             result_path.write_text(json.dumps(result, indent=2), encoding='utf-8')

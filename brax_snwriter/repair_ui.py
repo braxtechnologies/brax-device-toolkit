@@ -1,14 +1,12 @@
 """Guided serial, IMEI and factory address repair interface."""
 import json
-import os
-import shutil
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog
 from .repair_records import probe_identity
 import subprocess
-import re
 from .device_connection import NO_WINDOW
+from .platform_support import ADB_NAME, find_adb, is_adb, is_serial_port, usb_device_location
 from .ui_base import AppWindow, new_record_path
 from .serial_record import validate_serial, change_serial, patch_serial, PRODUCT_LID
 from .imei import validate_imei, write_assigned, inspect_imeis
@@ -233,31 +231,20 @@ class RepairApp(AppWindow):
 
 
     def resolve_adb(self):
-        value = self.fields['adb'].get().strip().strip('"')
-        if value:
-            expanded = os.path.expandvars(os.path.expanduser(value))
-            candidate = shutil.which(expanded)
-            if candidate:
-                self.fields['adb'].set(str(Path(candidate).resolve()))
-            elif Path(expanded).is_absolute():
-                self.fields['adb'].set(str(Path(expanded)))
-            elif value.lower() in ('adb', 'adb.exe'):
-                common = Path('C:/Program Files/platform-tools/adb.exe')
-                if common.is_file():
-                    self.fields['adb'].set(str(common.resolve()))
+        found = find_adb(self.fields['adb'].get())
+        if found:
+            self.fields['adb'].set(found)
         self.update_adb_status()
 
 
     def update_adb_status(self):
-        value = self.fields['adb'].get().strip()
-        path = Path(value)
-        found = path.is_absolute() and path.is_file() and path.name.lower() == 'adb.exe'
-        self.adb_status.set('Found · adb.exe exists at this path' if found else 'Not found · browse to a valid adb.exe')
+        found = is_adb(self.fields['adb'].get().strip())
+        self.adb_status.set(f'Found · {ADB_NAME} exists at this path' if found else f'Not found · browse to a valid {ADB_NAME}')
 
     def choose_adb(self):
         if self.busy or (self.stage in (3, 4) and not self.recovery_required):
             return
-        path = filedialog.askopenfilename(parent=self.root, title='Choose Android platform-tools adb.exe', filetypes=[('ADB executable', 'adb.exe')])
+        path = filedialog.askopenfilename(parent=self.root, title='Choose Android platform-tools '+ADB_NAME, filetypes=[('ADB executable', ADB_NAME)])
         if path:
             self.fields['adb'].set(path)
             self.resolve_adb()
@@ -572,8 +559,8 @@ class RepairApp(AppWindow):
         if not v['serial']:
             raise ValueError('No phone selected. If the phone is already in META mode, use Detect META phone in Advanced tools first.')
         validate_serial(v['serial'])
-        if not re.fullmatch(r'COM[1-9][0-9]*',v['port'],re.I):
-            raise ValueError('No META port selected. In Device: check the BaseOS phone and USB, then Enter factory META mode. Normal Android has no META COM port.')
+        if not is_serial_port(v['port']):
+            raise ValueError('No META port selected. In Device: check the BaseOS phone and USB, then Enter factory META mode. Normal Android has no META serial port.')
 
     def inventory(self):
         v = self.values()
@@ -587,5 +574,5 @@ class RepairApp(AppWindow):
             if 'port' in self.inputs:
                 self.inputs['port'].configure(values=[p['port'] for p in result['ports']])
             if 'usb' in self.inputs:
-                self.inputs['usb'].configure(values=sorted({p['location'].split(':')[0] for p in result['ports'] if p['location']}))
+                self.inputs['usb'].configure(values=sorted({usb_device_location(p['location']) for p in result['ports'] if p['location']}))
         self.run('Listing devices', operation, selected)

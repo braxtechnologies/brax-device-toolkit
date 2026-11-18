@@ -9,12 +9,20 @@ from brax_snwriter.serial_record import BASEOS_FINGERPRINT
 
 
 class DeviceConnectionTests(unittest.TestCase):
-    def run_scenario(self, *, bad_adb=False, bad_meta=False):
+    def run_scenario(self, *, bad_adb=False, bad_meta=False, linux=False):
         ports = MagicMock()
-        pre = SimpleNamespace(vid=0x0e8d, pid=0x2000, location='1-1', device='COM5')
-        pending = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:x.1', device='')
-        ap = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:x.1', device='COM11')
-        ports.comports.side_effect = [[], [pre], [pending], [ap]]
+        if linux:
+            # pySerial on Linux: sysfs interface names and /dev/ttyACM nodes.
+            pre = SimpleNamespace(vid=0x0e8d, pid=0x2000, location='1-1:1.0', device='/dev/ttyACM0')
+            pending = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:1.1', device='')
+            other = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:1.3', device='/dev/ttyACM2')
+            ap = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:1.1', device='/dev/ttyACM1')
+            ports.comports.side_effect = [[], [pre], [pending], [other, ap]]
+        else:
+            pre = SimpleNamespace(vid=0x0e8d, pid=0x2000, location='1-1', device='COM5')
+            pending = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:x.1', device='')
+            ap = SimpleNamespace(vid=0x0e8d, pid=0x200e, location='1-1:x.1', device='COM11')
+            ports.comports.side_effect = [[], [pre], [pending], [ap]]
         serial = ModuleType('serial')
         tools = ModuleType('serial.tools')
         tools.list_ports = ports
@@ -39,13 +47,15 @@ class DeviceConnectionTests(unittest.TestCase):
                     opened.assert_not_called()
             else:
                 result = boot_meta('adb', 'BRAXUNIT00000001', '1-1')
-                self.assertEqual(result['port'], 'COM11')
-                self.assertEqual([c.args[0] for c in opened.call_args_list], ['COM5','COM11'])
+                expected = ['/dev/ttyACM0','/dev/ttyACM1'] if linux else ['COM5','COM11']
+                self.assertEqual(result['port'], expected[1])
+                self.assertEqual([c.args[0] for c in opened.call_args_list], expected)
                 self.assertEqual(reboot.call_args.args[0], ['adb','-s','BRAXUNIT00000001','reboot'])
 
     def test_reenumeration_waits_for_assigned_com_name(self): self.run_scenario()
     def test_wrong_adb_device_not_rebooted(self): self.run_scenario(bad_adb=True)
     def test_wrong_meta_identity_rejected(self): self.run_scenario(bad_meta=True)
+    def test_linux_ports_select_meta_interface_one(self): self.run_scenario(linux=True)
 
     def test_normal_reboot_is_source_defined_and_targeted(self):
         serial='BRAXUNIT00000001'

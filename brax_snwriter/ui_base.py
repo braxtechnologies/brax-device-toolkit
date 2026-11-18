@@ -1,6 +1,5 @@
 """Repair app window state, background tasks, logs and field controls."""
 import json
-import os
 import subprocess
 from pathlib import Path
 import queue
@@ -10,6 +9,7 @@ from tkinter import ttk, filedialog
 from datetime import datetime, timezone
 import uuid
 from .help_content import FIELD_HELP
+from .platform_support import ADB_NAME, open_folder
 
 
 class ToolTip:
@@ -93,7 +93,7 @@ class AppWindow:
 
     def open_records(self):
         try:
-            os.startfile(str(self.data))
+            open_folder(self.data)
         except OSError as exc:
             self.append(str(exc))
 
@@ -109,7 +109,7 @@ class AppWindow:
                 self.append(str(exc))
 
     def choose_adb(self):
-        path = filedialog.askopenfilename(parent=self.root, title='Choose adb.exe', filetypes=[('ADB executable','adb.exe')])
+        path = filedialog.askopenfilename(parent=self.root, title='Choose '+ADB_NAME, filetypes=[('ADB executable',ADB_NAME)])
         if path:
             self.fields['adb'].set(path)
 
@@ -173,7 +173,7 @@ class AppWindow:
                 if isinstance(exc,subprocess.CalledProcessError) and exc.stderr:
                     detail+='\n'+(exc.stderr.decode(errors='replace') if isinstance(exc.stderr,bytes) else str(exc.stderr))
                 if isinstance(exc,FileNotFoundError):
-                    detail+='\nUse Choose ADB to select platform-tools/adb.exe; verify that selected files exist.'
+                    detail+='\nUse Choose ADB to select platform-tools/'+ADB_NAME+'; verify that selected files exist.'
                 self.queue.put(('error',detail))
             finally:
                 self.queue.put(('done', None))

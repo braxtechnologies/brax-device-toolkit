@@ -1,4 +1,4 @@
-"""Windows packaging entry point. Device operations start only from the UI."""
+"""App entry point (Windows packaging and Linux launcher). Device operations start only from the UI."""
 import argparse
 from pathlib import Path
 import tkinter as tk

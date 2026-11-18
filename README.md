@@ -67,6 +67,14 @@ Use **Advanced tools → Open records** to find saved backups and
 operation results. Keep backups private and retain them until you
 have checked the result after restarting the phone.
 
+## Linux (Debian, Ubuntu, Mint)
+
+The app also runs from source on Linux, with the same supported phones and safety
+checks. Run `./linux/setup.sh` and then `./linux/brax-device-toolkit`. Linux uses `adb`,
+`/dev/ttyACM*` ports, udev rules and the Linux build of SP Flash Tool. See the
+[Linux guide](LINUX.md). Connection checks and native storage inspection have
+passed on a BraX3 from Linux; repair and installation flows are not yet verified there.
+
 ## For contributors
 
 The experimental [native Python flashing engine](NATIVE-FLASH.md) removes the

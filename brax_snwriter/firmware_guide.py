@@ -1,10 +1,10 @@
 """Sequential OS installation guidance; no UI setting bypasses compatibility checks."""
-import os
 import subprocess
 import tkinter as tk
 from tkinter import ttk
 from . import firmware_catalog as catalog
 from .discovery import adb_states
+from .platform_support import NO_WINDOW
 from .flash_plan import review_package
 from .compatibility import require_verified_compatibility
 
@@ -21,7 +21,7 @@ MODE_HELP = {
 
 def read_android(adb):
     """Observe one authorized USB phone without rebooting or assuming model trust."""
-    flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+    flags = NO_WINDOW
     def call(*args):
         return subprocess.check_output([adb, *args], text=True, stderr=subprocess.PIPE,
                                        timeout=15, creationflags=flags).strip()
