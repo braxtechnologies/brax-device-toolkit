@@ -3,13 +3,14 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, simpledialog
 from .flash_backend import MODES, prepare, execute
+from .platform_support import IS_WINDOWS
 
 
 def build_flash_controls(app, parent, run, monitor):
     box = ttk.LabelFrame(parent, text='Flash / format using external SP Flash Tool', padding=12)
     box.pack(fill='x', pady=12)
     ttk.Label(box, text='Compatibility: not verified. Flash and format commands are blocked until exact phone identity and an approved release can be checked. A matching chip is insufficient.', wraplength=800).pack(anchor='w', pady=8)
-    ttk.Label(box, text='Requires your installed SPFlashToolV6.exe and an extracted BraX3 SP Flash package. '
+    ttk.Label(box, text='Requires your installed '+('SPFlashToolV6.exe' if IS_WINDOWS else 'SPFlashToolV6')+' and an extracted BraX3 SP Flash package. '
               'These operations use the vendor tool, not a standalone Python writer. '
               'Download Only has a successful live test; the other modes have automated integration tests only.', wraplength=800).pack(anchor='w')
     tool = app.firmware_tool
@@ -17,7 +18,7 @@ def build_flash_controls(app, parent, run, monitor):
     mode = tk.StringVar(value='Download Only')
     explanation = tk.StringVar(value=MODES['download'][1])
     app.flash_fields = {'tool': tool, 'manifest': manifest, 'mode': mode}
-    for title, variable, pattern in [('SP Flash Tool executable', tool, '*.exe'), ('Extracted package: download_agent/flash.xml', manifest, '*.xml')]:
+    for title, variable, pattern in [('SP Flash Tool executable', tool, '*.exe' if IS_WINDOWS else 'SPFlashToolV6'), ('Extracted package: download_agent/flash.xml', manifest, '*.xml')]:
         ttk.Label(box, text=title).pack(anchor='w', pady=(8, 2))
         row = ttk.Frame(box)
         row.pack(fill='x')
@@ -34,7 +35,7 @@ def build_flash_controls(app, parent, run, monitor):
     ttk.Label(box, textvariable=explanation, wraplength=800).pack(anchor='w', pady=8)
     ttk.Label(box, text='First check the powered-off connection above, then unplug the phone. Review the operation, '
               'start the listener, and reconnect that same powered-off phone. Keep other phones disconnected. '
-              'The selected COM port identifies the connection, not a cryptographic device identity.', wraplength=800).pack(anchor='w', pady=6)
+              'The selected serial port identifies the connection, not a cryptographic device identity.', wraplength=800).pack(anchor='w', pady=6)
 
     def review():
         if app.busy:

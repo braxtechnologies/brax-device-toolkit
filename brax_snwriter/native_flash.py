@@ -16,6 +16,7 @@ import threading
 
 from .boot_probe import open_boot_session, wait_and_probe
 from .da_protocol import Agent, AgentError, parse_xml
+from .platform_support import usb_device_location
 
 AGENT_SHA256 = 'f8fc84afc9692e4ce3ea9ad5e2b0be2aaf9d83dc0627a5066ef1e03e897b55d3'
 IMAGE_PARTITIONS = {'boot_a', 'boot_b', 'init_boot_a', 'init_boot_b',
@@ -197,7 +198,7 @@ def connect(agent_path, usb_location, operation, event=print, timeout=120, cance
     if not re.fullmatch(r'\d+(?:-\d+)+', usb_location):
         raise ValueError('Specify the exact physical USB location for the test phone')
     def probe(port, stop):
-        if (port.location or '').split(':')[0] != usb_location or port.pid != 0x2000:
+        if usb_device_location(port.location) != usb_location or port.pid != 0x2000:
             raise ValueError('A different boot device appeared; not opening it')
         def ready(link, identity):
             agent = start_agent(link, identity, regions, event)

@@ -30,10 +30,11 @@ class GuidedRepairTests(unittest.TestCase):
 
     def test_adb_resolves_full_path_and_missing_path_is_reported(self):
         a = self.app
-        executable = Path(self.temp.name)/'platform-tools'/'adb.exe'
-        executable.parent.mkdir(); executable.touch()
+        from brax_snwriter.platform_support import ADB_NAME
+        executable = Path(self.temp.name)/'platform-tools'/ADB_NAME
+        executable.parent.mkdir(); executable.touch(); executable.chmod(0o755)
         a.fields['adb'].set('adb')
-        with patch('brax_snwriter.repair_ui.shutil.which', return_value=str(executable)):
+        with patch('brax_snwriter.platform_support.shutil.which', return_value=str(executable)):
             a.resolve_adb()
         self.assertEqual(a.fields['adb'].get(), str(executable.resolve()))
         self.assertTrue(a.adb_status.get().startswith('Found'))

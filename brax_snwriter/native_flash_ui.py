@@ -3,6 +3,7 @@ from datetime import datetime
 import re
 import tkinter as tk
 from tkinter import filedialog, simpledialog, ttk
+from .platform_support import NO_WINDOW, usb_device_location
 
 
 def build_native_controls(app, parent, run, monitor):
@@ -44,7 +45,7 @@ def build_native_controls(app, parent, run, monitor):
         if app.busy:
             return
         device = dict(getattr(app, 'firmware_device', {}))
-        location = (device.get('usb_location') or '').split(':')[0]
+        location = usb_device_location(device.get('usb_location'))
         if not device.get('handshake_verified') or not re.fullmatch(r'\d+(?:-\d+)+', location):
             app.status.set('Check the powered-off connection first to identify the USB location.')
             return
@@ -88,7 +89,6 @@ def build_native_controls(app, parent, run, monitor):
         from .native_install import prepare, install
         from .firmware_guide import read_android
         import subprocess
-        import os
         expected = json.loads(json.dumps(inspected['device']))
         location = inspected['location']
         adb = app.fields['adb'].get()
@@ -99,7 +99,7 @@ def build_native_controls(app, parent, run, monitor):
             if phone['ro.product.device'] != 'brax3' or phone['ro.product.model'] != 'BraX3':
                 raise ValueError('This installation profile is only for BraX3')
             slot = subprocess.check_output([adb,'-s',phone['serial'],'shell','getprop','ro.boot.slot_suffix'],
-                text=True,timeout=15,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0).strip()
+                text=True,timeout=15,creationflags=NO_WINDOW).strip()
             if slot != '_a':
                 raise ValueError('This installation profile requires active slot A; slot switching is not implemented')
             plan, agent_path = prepare(package,expected,output)

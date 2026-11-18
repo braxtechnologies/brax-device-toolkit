@@ -50,11 +50,11 @@ class FirmwareWizardGates(unittest.TestCase):
         prerequisite = self.app.flash_prerequisite
         self.assertIs(self.app.flash_fields['tool'], self.app.firmware_tool)
         prerequisite.run = lambda label, operation, done: done(operation())
-        with patch('brax_snwriter.flash_prerequisite.windows_packages', return_value=[]):
+        with patch('brax_snwriter.flash_prerequisite.host_packages', return_value=[]):
             prerequisite.check_catalog()
         self.app.refresh_gates()
         self.assertIn('disabled', prerequisite.download_button.state())
-        self.assertIn('Linux ZIP does not work', prerequisite.message.get())
+        self.assertIn('ZIP with a SHA256 file is published here yet', prerequisite.message.get())
 
     def test_connection_success_unlocks_only_package_step(self):
         phone = {'ro.product.model':'BraX3', 'ro.build.version.release':'16',

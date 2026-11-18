@@ -2,12 +2,11 @@
 import subprocess
 import time
 import struct
-import os
 from .framing import Frame, encode
 from .meta_boot import enter_meta
 from .session import open_serial, MetaSession
 from .serial_record import BASEOS_FINGERPRINT, validate_serial
-NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+from .platform_support import NO_WINDOW, usb_device_location, usb_interface
 
 
 def return_normal(adb, port, serial_number, *, timeout=180, report=None, expected_after=None):
@@ -49,7 +48,7 @@ def boot_meta(adb, serial_number, usb_location, *, timeout=60, report=None):
     """usb_location must be established from the selected phone's USB topology.
 
     This function negotiates boot mode and queries identity. It never writes a
-    factory record. The caller receives the newly assigned COM port only after
+    factory record. The caller receives the newly assigned serial port only after
     firmware and serial validation. Port numbers are never reused by assumption.
     """
     from serial.tools import list_ports
@@ -66,7 +65,7 @@ def boot_meta(adb, serial_number, usb_location, *, timeout=60, report=None):
 
     def matching_ports():
         return [p for p in list_ports.comports()
-                if p.vid == 0x0e8d and p.location and p.location.split(':')[0] == usb_location]
+                if p.vid == 0x0e8d and p.location and usb_device_location(p.location) == usb_location]
 
     if adb_getprop('ro.build.fingerprint') != BASEOS_FINGERPRINT or adb_getprop('ro.serialno') != serial_number:
         raise ValueError("ADB target is not the expected BaseOS device")
@@ -82,7 +81,7 @@ def boot_meta(adb, serial_number, usb_location, *, timeout=60, report=None):
     while time.monotonic() < deadline:
         ports = matching_ports()
         preloader = [p for p in ports if p.pid == 0x2000 and p.device]
-        ap = [p for p in ports if p.pid == 0x200e and p.device and p.location.endswith(':x.1')]
+        ap = [p for p in ports if p.pid == 0x200e and p.device and usb_interface(p.location) == 1]
         if len(preloader) > 1 or len(ap) > 1:
             raise RuntimeError("ambiguous USB endpoints; no selection made")
         if preloader and not negotiated:

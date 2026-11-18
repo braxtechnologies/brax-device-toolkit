@@ -1,11 +1,11 @@
-"""Read-only Windows USB topology lookup for an explicitly selected phone."""
+"""Read-only USB topology lookup (Windows PnP or Linux sysfs) for an explicitly selected phone."""
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 from .serial_record import BASEOS_FINGERPRINT, validate_serial
-NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+from .platform_support import NO_WINDOW, linux_usb_location
 
 
 def adb_states(output):
@@ -49,7 +49,8 @@ def check_connection(adb, serial):
     if props['ro.bootmode'] != 'normal':
         raise ValueError('Phone is already outside normal mode. Refresh ports and select its META COM port.')
     if os.name != 'nt':
-        raise ValueError('Automatic USB topology discovery is Windows-only; enter the verified physical location manually')
+        return {'serial':serial,'usb_location':linux_usb_location(serial),
+                'fingerprint':BASEOS_FINGERPRINT,'bootmode':'normal'}
     # Serial is restricted to 16 ASCII uppercase alphanumeric characters above.
     script = "$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
     script += f"$p=Get-PnpDeviceProperty -InstanceId 'USB\\VID_0E8D&PID_201C\\{serial}' -KeyName DEVPKEY_Device_LocationPaths; @($p.Data) | ConvertTo-Json -Compress"

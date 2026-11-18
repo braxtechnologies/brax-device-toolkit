@@ -10,6 +10,7 @@ from .modem import ModemSession
 from .serial_record import BASEOS_FINGERPRINT, validate_serial
 from .device_connection import boot_meta, return_normal, NO_WINDOW
 from .ui_base import new_record_path
+from .platform_support import usb_device_location
 from . import advanced_records as records
 
 
@@ -66,7 +67,7 @@ def detect(adb):
             if (prop('ro.serialno'),prop('ro.build.fingerprint'),prop('ro.bootmode')) != (serial,fingerprint,'meta'):
                 raise ValueError('ADB and META details disagree. Wait for the mode change to finish and detect again.')
         return {'mode':'meta','serial':serial,'fingerprint':fingerprint,'port':ports[0].device,
-                'usb_location':(ports[0].location or '').split(':')[0]}
+                'usb_location':usb_device_location(ports[0].location)}
     if phones:
         serial,state=next(iter(phones.items()))
         if state!='device':
@@ -133,7 +134,7 @@ def build_advanced(app, parent):
                 checked=check_connection(v['adb'],v['serial'])
                 if checked['usb_location']!=v['usb']:raise ValueError('USB location changed. Detect the phone again.')
                 result=boot_meta(v['adb'],v['serial'],v['usb'],report=app.emit)
-                return {**result,'mode':'meta','usb_location':result['usb_location'].split(':')[0]}
+                return {**result,'mode':'meta','usb_location':usb_device_location(result['usb_location'])}
             return_normal(v['adb'],v['port'],v['serial'],expected_after=expected,report=app.emit)
             return {**check_connection(v['adb'],expected),'mode':'normal','port':''}
         def done(result):

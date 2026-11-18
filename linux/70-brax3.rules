@@ -1,0 +1,14 @@
+# Brax Device Toolkit: BraX3 (MediaTek USB vendor 0e8d) access on Linux.
+# Install: sudo install -m 0644 70-brax3.rules /etc/udev/rules.d/
+#          sudo udevadm control --reload-rules && sudo udevadm trigger
+# Replug the phone afterwards.
+
+# Raw USB access for ADB and the Download Agent for the logged-in desktop user.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", MODE="0660", TAG+="uaccess"
+
+# Preloader, BROM and META serial ports (/dev/ttyACM*).
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0e8d", MODE="0660", TAG+="uaccess"
+
+# Keep ModemManager from probing META/preloader ports; probing can break the
+# short preloader handshake window and corrupt META sessions.
+ATTRS{idVendor}=="0e8d", ENV{ID_MM_DEVICE_IGNORE}="1"
